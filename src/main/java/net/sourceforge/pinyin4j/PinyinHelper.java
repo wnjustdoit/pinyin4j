@@ -263,6 +263,7 @@ public class PinyinHelper {
 
     char[] chars = str.toCharArray();
     boolean lastHasResult = false;
+    boolean lastIsSeparator = false;
     for (int i = 0; i < chars.length; i++) {
       String result = null;//匹配到的最长的结果
       char ch = chars[i];
@@ -287,34 +288,42 @@ public class PinyinHelper {
           break;
       } while (currentTrie != null);
 
-      if (result == null) {//如果在前缀树中没有匹配到，那么它就不能转换为拼音，直接输出或者去掉；并且移除前一个空格，如果之前是手动加上的话
+      if (result == null) {
         if (retain) {
-          resultPinyinStrBuf.append(chars[i]);
-        }
-        if (i > 0 && !retainSeparator && lastHasResult) {
-          resultPinyinStrBuf.delete(resultPinyinStrBuf.length() - 1 - separate.length(),
-              resultPinyinStrBuf.length() - 1);
-        }
-      } else {
-        if (i > 0 && retainSeparator && !lastHasResult) {
-          if (current < chars.length) {
+          // can be converted  =>  can't
+          if (i > 0 && retainSeparator && lastHasResult && !lastIsSeparator){
             resultPinyinStrBuf.append(separate);
           }
+          resultPinyinStrBuf.append(chars[i]);
+          lastIsSeparator = false;
+        }
+
+      } else {
+        // can't be converted  =>  can
+        if (i > 0 && retain && retainSeparator && !lastHasResult ) {
+          resultPinyinStrBuf.append(separate);
+          lastIsSeparator = true;
         }
         String[] pinyinStrArray = resource.parsePinyinString(result);
         if (pinyinStrArray != null) {
           for (int j = 0; j < pinyinStrArray.length; j++) {
             resultPinyinStrBuf.append(PinyinFormatter.formatHanyuPinyin(pinyinStrArray[j],
                 outputFormat));
-            if (current < chars.length || (j < pinyinStrArray.length - 1 && i != success)) {//不是最后一个,(也不是拼音的最后一个,并且不是最后匹配成功的)
-              resultPinyinStrBuf.append(separate);
-            }
+            //Pinyin followed by separate
+            resultPinyinStrBuf.append(separate);
+            lastIsSeparator = true;
+
             if (i == success) break;
           }
         }
       }
       i = success;
       lastHasResult = (result != null);
+    }
+    //removes the last separator
+    if (lastIsSeparator) {
+      int start = resultPinyinStrBuf.length() - separate.length();
+      resultPinyinStrBuf.delete(start, Integer.MAX_VALUE);
     }
 
     return resultPinyinStrBuf.toString();
